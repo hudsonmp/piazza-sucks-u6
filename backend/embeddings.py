@@ -2,28 +2,59 @@ import os
 import json
 import numpy as np
 from datetime import datetime
+import requests
+from openai import OpenAI
 
-# In a real application, you would use a proper vector database and embedding API
-# This is a simplified mock implementation
+# Load environment variables from .env file
+try:
+    from load_env import load_env
+    load_env()
+except ImportError:
+    print("Warning: load_env module not found. Using existing environment variables.")
 
-# Mock vector database
-vector_db = {}
+# Initialize OpenAI client
+client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-def extract_text_from_file(file_path):
+# Supabase connection
+SUPABASE_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_PUBLIC")
+
+# Supabase API headers
+def get_admin_headers():
+    return {
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+        "Content-Type": "application/json"
+    }
+
+def get_anon_headers():
+    return {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+        "Content-Type": "application/json"
+    }
+
+def extract_text_from_file(file_path, file_type='text/plain'):
     """
     Extract text content from various file types.
-    In a real implementation, you would use libraries like PyPDF2, python-docx, etc.
+    This is a simplified implementation. In production, use specific libraries for each file type.
     """
-    # This is a simplified mock implementation
-    file_extension = file_path.split('.')[-1].lower()
-    
-    # In a real app, you would use appropriate libraries for each file type
-    if file_extension in ['txt', 'json']:
+    if file_type == 'text/plain':
         with open(file_path, 'r', encoding='utf-8') as f:
             return f.read()
+    # In a real application, you would add support for more file types:
+    # - PDF: using PyPDF2 or pdfminer
+    # - DOCX: using python-docx
+    # - PPTX: using python-pptx
+    # etc.
     else:
-        # Mock text extraction for other file types
-        return f"Extracted text content from {file_path}"
+        # For simplicity, just read the file as text
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except:
+            return "Could not extract text from this file type."
 
 def chunk_text(text, chunk_size=1000, overlap=200):
     """
@@ -50,100 +81,131 @@ def chunk_text(text, chunk_size=1000, overlap=200):
     
     return chunks
 
-def create_mock_embedding(text):
+def create_embedding(text):
     """
-    Create a mock embedding vector for the text.
-    In a real app, you would call an embedding API like OpenAI's.
+    Create embedding using OpenAI API.
     """
-    # This creates a deterministic but unique vector based on the text content
-    # In a real app, this would be a call to an embedding model
-    import hashlib
-    hash_object = hashlib.md5(text.encode())
-    hash_hex = hash_object.hexdigest()
-    
-    # Convert the hex hash to a list of floats to simulate an embedding vector
-    vector = []
-    for i in range(0, len(hash_hex), 2):
-        if i+1 < len(hash_hex):
-            value = int(hash_hex[i:i+2], 16) / 255.0  # Normalize to 0-1
-            vector.append(value)
-    
-    # Pad to ensure consistent dimensionality
-    while len(vector) < 64:  # Using 64 dimensions for our mock embeddings
-        vector.append(0.0)
-    
-    return vector[:64]  # Ensure exactly 64 dimensions
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=text
+    )
+    return response.data[0].embedding
 
-def create_embeddings(file_path, metadata):
+def process_documents(file_content, metadata):
     """
-    Process a file and create embeddings for its content.
+    Process content into documents with chunks.
     """
-    try:
-        # Extract text from the file
-        text = extract_text_from_file(file_path)
-        
-        # Split text into chunks
-        chunks = chunk_text(text)
-        
-        # Create embeddings for each chunk
-        for i, chunk in enumerate(chunks):
-            chunk_id = f"{metadata['id']}_chunk_{i}"
-            embedding = create_mock_embedding(chunk)
-            
-            # Store in our mock vector database
-            vector_db[chunk_id] = {
-                'embedding': embedding,
-                'text': chunk,
-                'metadata': {
-                    **metadata,
-                    'chunkIndex': i,
-                    'chunkCount': len(chunks)
-                }
+    # Split the content into chunks
+    chunks = chunk_text(file_content)
+    
+    documents = []
+    for i, chunk in enumerate(chunks):
+        documents.append({
+            "id": f"{metadata['fileId']}-chunk-{i}",
+            "content": chunk,
+            "metadata": {
+                **metadata,
+                "chunkIndex": i,
+                "totalChunks": len(chunks)
             }
-        
-        print(f"Created {len(chunks)} embeddings for {file_path}")
-        return True
-    except Exception as e:
-        print(f"Error creating embeddings: {str(e)}")
-        raise
-
-def cosine_similarity(vec1, vec2):
-    """
-    Calculate cosine similarity between two vectors.
-    """
-    dot_product = sum(a * b for a, b in zip(vec1, vec2))
-    norm_a = sum(a * a for a in vec1) ** 0.5
-    norm_b = sum(b * b for b in vec2) ** 0.5
-    
-    if norm_a == 0 or norm_b == 0:
-        return 0
-    
-    return dot_product / (norm_a * norm_b)
-
-def semantic_search(query, course_id, top_k=5):
-    """
-    Perform semantic search using the query.
-    """
-    # Create embedding for the query
-    query_embedding = create_mock_embedding(query)
-    
-    # Calculate similarity with all stored embeddings
-    results = []
-    for chunk_id, data in vector_db.items():
-        # Filter by course ID if specified
-        if course_id != 'default' and data['metadata']['courseId'] != course_id:
-            continue
-        
-        similarity = cosine_similarity(query_embedding, data['embedding'])
-        results.append({
-            'id': chunk_id,
-            'text': data['text'],
-            'metadata': data['metadata'],
-            'score': similarity
         })
     
-    # Sort by similarity score (descending)
-    results.sort(key=lambda x: x['score'], reverse=True)
+    return documents
+
+def create_embeddings_for_documents(documents):
+    """
+    Create and store embeddings for documents in Supabase.
+    """
+    try:
+        # Use Supabase directly via API
+        for doc in documents:
+            # Generate embedding
+            embedding = create_embedding(doc['content'])
+            
+            # Store in database via API
+            response = requests.post(
+                f"{SUPABASE_URL}/rest/v1/embeddings",
+                headers=get_admin_headers(),
+                json={
+                    "id": doc['id'],
+                    "content": doc['content'],
+                    "embedding": embedding,
+                    "metadata": doc['metadata'],
+                    "created_at": datetime.now().isoformat()
+                }
+            )
+            
+            if response.status_code not in [200, 201]:
+                raise Exception(f"Failed to store embedding: {response.text}")
+        
+        return {"success": True, "count": len(documents)}
+    except Exception as e:
+        print("Error creating embeddings:", str(e))
+        raise e
+
+def semantic_search(query, course_id, limit=5):
+    """
+    Perform semantic search using Supabase and matching function.
+    """
+    # Create embedding for the query
+    query_embedding = create_embedding(query)
     
-    # Return top k results
-    return results[:top_k]
+    # Use Supabase RPC to call the match_documents function
+    response = requests.post(
+        f"{SUPABASE_URL}/rest/v1/rpc/match_documents",
+        headers=get_admin_headers(),
+        json={
+            "query_embedding": query_embedding,
+            "match_threshold": 0.5,
+            "match_count": limit,
+            "course_id": course_id
+        }
+    )
+    
+    if response.status_code != 200:
+        raise Exception(f"Error in semantic search: {response.text}")
+    
+    return response.json()
+
+def setup_vector_store():
+    """
+    Set up the vector store in Supabase.
+    """
+    try:
+        # Enable pgvector extension
+        response = requests.post(
+            f"{SUPABASE_URL}/rest/v1/rpc/enable_pgvector_extension",
+            headers=get_admin_headers()
+        )
+        
+        if response.status_code not in [200, 204]:
+            print(f"Error enabling pgvector extension: {response.text}")
+        
+        # Create the embeddings table
+        response = requests.post(
+            f"{SUPABASE_URL}/rest/v1/rpc/create_embeddings_table",
+            headers=get_admin_headers()
+        )
+        
+        if response.status_code not in [200, 204]:
+            print(f"Error creating embeddings table: {response.text}")
+        
+        # Create the match documents function
+        response = requests.post(
+            f"{SUPABASE_URL}/rest/v1/rpc/create_match_documents_function",
+            headers=get_admin_headers()
+        )
+        
+        if response.status_code not in [200, 204]:
+            print(f"Error creating match_documents function: {response.text}")
+        
+        return {
+            "success": True,
+            "message": "Vector store setup complete"
+        }
+    except Exception as e:
+        print(f"Error setting up vector store: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }

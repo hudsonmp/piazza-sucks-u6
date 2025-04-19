@@ -262,6 +262,7 @@ export function FileUploader({ courseId: propsCourseId, onUploadComplete }: File
                           <SelectItem value="slides">Slides</SelectItem>
                           <SelectItem value="notes">Lecture Notes</SelectItem>
                           <SelectItem value="transcript">Transcript</SelectItem>
+                          <SelectItem value="handout">Handout</SelectItem>
                           <SelectItem value="assignment">Assignment</SelectItem>
                           <SelectItem value="other">Other</SelectItem>
                         </SelectContent>

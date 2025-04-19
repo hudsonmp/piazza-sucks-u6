@@ -3,7 +3,7 @@ import type { Database } from "@/types/supabase"
 
 // Use environment variables
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-const supabaseAnonKey = process.env.SUPABASE_ANON_PUBLIC || ""
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
 // Create the Supabase client for auth operations
 export const supabaseAuth = createClient<Database>(supabaseUrl, supabaseAnonKey)

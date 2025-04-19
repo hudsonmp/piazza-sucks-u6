@@ -43,11 +43,22 @@ export function CourseUploadDashboard() {
             <CardHeader>
               <CardTitle>Upload Course Materials</CardTitle>
               <CardDescription>
-                Upload your syllabus, slideshows, lecture notes, transcripts, and assignments. These will be processed
-                for AI-enhanced semantic search.
+                Please upload your course materials as PDFs. The system will process them for AI-powered student Q&A.
               </CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="mb-4 p-4 bg-muted rounded-lg">
+                <h3 className="font-medium mb-2">Recommended Materials to Upload:</h3>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li><strong>Syllabus:</strong> Course schedule, policies, and requirements</li>
+                  <li><strong>Lecture Notes:</strong> Detailed notes from lectures</li>
+                  <li><strong>Slideshows:</strong> PowerPoint or other presentation materials</li>
+                  <li><strong>Transcripts:</strong> Text versions of any video or audio lectures</li>
+                  <li><strong>Handouts:</strong> Any supplementary materials distributed to students</li>
+                  <li><strong>Assignments:</strong> Homework, projects, and other assessments</li>
+                </ul>
+                <p className="mt-2 text-sm text-muted-foreground">All files will be processed to create embeddings for AI search capabilities.</p>
+              </div>
               <FileUploader onUploadComplete={handleMaterialsUpdate} />
             </CardContent>
           </Card>
