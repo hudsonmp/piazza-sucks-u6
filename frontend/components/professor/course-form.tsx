@@ -11,6 +11,7 @@ import { Textarea } from "@/frontend/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from "lucide-react"
 import { supabaseAuth } from "@/lib/supabase-auth"
+import { useSupabaseAuth } from "@/hooks/use-supabase-auth"
 
 const courseFormSchema = z.object({
   title: z.string().min(3, {
@@ -46,6 +47,7 @@ interface CourseFormProps {
 export function CourseForm({ existingCourse, onSuccess }: CourseFormProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const { user } = useSupabaseAuth()
 
   const form = useForm<CourseFormValues>({
     resolver: zodResolver(courseFormSchema),
@@ -56,11 +58,6 @@ export function CourseForm({ existingCourse, onSuccess }: CourseFormProps) {
     setIsSubmitting(true)
 
     try {
-      // Get the current user
-      const {
-        data: { user },
-      } = await supabaseAuth.auth.getUser()
-
       if (!user) {
         throw new Error("You must be logged in to create a course")
       }

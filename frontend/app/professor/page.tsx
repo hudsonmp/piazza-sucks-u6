@@ -1,40 +1,112 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { AppSidebar } from "@/frontend/components/professor/app-sidebar"
 import { CourseUploadDashboard } from "@/frontend/components/professor/course-upload-dashboard"
 import { CourseForm } from "@/frontend/components/professor/course-form"
+import { AuthForm } from "@/frontend/components/professor/auth-form"
 import { Button } from "@/frontend/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/frontend/components/ui/tabs"
+import { supabaseAuth } from "@/lib/supabase-auth"
+import { Loader2 } from "lucide-react"
+import { useSupabaseAuth } from "@/hooks/use-supabase-auth"
 
 export default function ProfessorDashboard() {
   const [activeTab, setActiveTab] = useState("dashboard")
   const [showAddCourse, setShowAddCourse] = useState(false)
+  const [courses, setCourses] = useState<any[]>([])
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin")
+  const { user, loading, signOut } = useSupabaseAuth()
 
-  // Mock course data
-  const mockCourses = [
-    {
-      id: "1",
-      name: "CS 101: Introduction to Programming",
-      description: "An introduction to programming concepts and practices.",
-      enrollmentCount: 45,
-      materialsCount: 12,
-    },
-    {
-      id: "2",
-      name: "MATH 240: Linear Algebra",
-      description: "A study of vector spaces, linear transformations, matrices, and systems of linear equations.",
-      enrollmentCount: 32,
-      materialsCount: 8,
-    },
-    {
-      id: "3",
-      name: "PHYS 201: Mechanics",
-      description: "Introduction to classical mechanics, including Newton's laws and conservation principles.",
-      enrollmentCount: 28,
-      materialsCount: 15,
-    },
-  ]
+  // Fetch courses when user changes
+  useEffect(() => {
+    if (user) {
+      fetchCourses(user.id)
+    } else {
+      setCourses([])
+    }
+  }, [user])
+  
+  // Fetch courses for the user
+  const fetchCourses = async (userId: string) => {
+    try {
+      const { data, error } = await supabaseAuth
+        .from("courses")
+        .select("*")
+        .eq("professor_id", userId)
+        
+      if (error) throw error
+      
+      setCourses(data || [])
+    } catch (error) {
+      console.error("Error fetching courses:", error)
+    }
+  }
+  
+  // Handle course added
+  const handleCourseAdded = () => {
+    if (user) {
+      fetchCourses(user.id)
+      setShowAddCourse(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2">Loading...</span>
+      </div>
+    )
+  }
+
+  // If no user is logged in, show authentication screen
+  if (!user) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div className="w-full max-w-md space-y-8">
+          <div>
+            <h2 className="mt-6 text-center text-3xl font-bold tracking-tight">
+              {authMode === "signin" ? "Sign in to your account" : "Create a new account"}
+            </h2>
+            <p className="mt-2 text-center text-sm text-muted-foreground">
+              {authMode === "signin"
+                ? "Sign in to manage your courses and materials"
+                : "Create an account to start using the platform"}
+            </p>
+          </div>
+          
+          <div className="mt-8 bg-card rounded-lg border p-6 shadow-sm">
+            <AuthForm 
+              isSignUp={authMode === "signup"} 
+            />
+            
+            <div className="mt-4 text-center">
+              <Button 
+                variant="link" 
+                onClick={() => setAuthMode(authMode === "signin" ? "signup" : "signin")}
+              >
+                {authMode === "signin" 
+                  ? "Don't have an account? Sign up" 
+                  : "Already have an account? Sign in"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Calculate summary data
+  const totalStudents = courses.reduce((acc, course) => {
+    // We'll need to count enrollments in a real implementation
+    return acc + (course.enrollment_count || 0)
+  }, 0)
+  
+  const totalMaterials = courses.reduce((acc, course) => {
+    // We'll need to count materials in a real implementation
+    return acc + (course.materials_count || 0)
+  }, 0)
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -47,9 +119,14 @@ export default function ProfessorDashboard() {
             <p className="text-muted-foreground">Manage your courses and materials</p>
           </div>
           
-          <Button onClick={() => setShowAddCourse(true)} disabled={showAddCourse}>
-            Add New Course
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => setShowAddCourse(true)} disabled={showAddCourse}>
+              Add New Course
+            </Button>
+            <Button variant="outline" onClick={signOut}>
+              Logout
+            </Button>
+          </div>
         </div>
 
         {showAddCourse ? (
@@ -61,10 +138,7 @@ export default function ProfessorDashboard() {
               </Button>
             </div>
             <CourseForm
-              onSuccess={() => {
-                // This would normally save the course
-                setShowAddCourse(false)
-              }}
+              onSuccess={handleCourseAdded}
             />
           </div>
         ) : (
@@ -79,19 +153,15 @@ export default function ProfessorDashboard() {
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <div className="rounded-lg border bg-card p-6">
                   <h3 className="text-lg font-medium">Total Courses</h3>
-                  <p className="mt-2 text-3xl font-bold">{mockCourses.length}</p>
+                  <p className="mt-2 text-3xl font-bold">{courses.length}</p>
                 </div>
                 <div className="rounded-lg border bg-card p-6">
                   <h3 className="text-lg font-medium">Total Students</h3>
-                  <p className="mt-2 text-3xl font-bold">
-                    {mockCourses.reduce((acc, course) => acc + course.enrollmentCount, 0)}
-                  </p>
+                  <p className="mt-2 text-3xl font-bold">{totalStudents}</p>
                 </div>
                 <div className="rounded-lg border bg-card p-6">
                   <h3 className="text-lg font-medium">Total Materials</h3>
-                  <p className="mt-2 text-3xl font-bold">
-                    {mockCourses.reduce((acc, course) => acc + course.materialsCount, 0)}
-                  </p>
+                  <p className="mt-2 text-3xl font-bold">{totalMaterials}</p>
                 </div>
               </div>
 
@@ -100,16 +170,30 @@ export default function ProfessorDashboard() {
                   <h3 className="text-lg font-medium">Recent Courses</h3>
                 </div>
                 <div className="p-4">
-                  {mockCourses.map((course) => (
-                    <div key={course.id} className="mb-4 rounded-lg border p-4 last:mb-0">
-                      <h4 className="font-medium">{course.name}</h4>
-                      <p className="text-sm text-muted-foreground">{course.description}</p>
-                      <div className="mt-2 flex gap-4 text-sm">
-                        <span>{course.enrollmentCount} students</span>
-                        <span>{course.materialsCount} materials</span>
+                  {courses.length > 0 ? (
+                    courses.map((course) => (
+                      <div key={course.id} className="mb-4 rounded-lg border p-4 last:mb-0">
+                        <h4 className="font-medium">{course.title}</h4>
+                        <p className="text-sm text-muted-foreground">{course.description}</p>
+                        <div className="mt-2 flex gap-4 text-sm">
+                          <span>{course.term}</span>
+                          <span>{course.department}</span>
+                          <span>{course.code}</span>
+                        </div>
                       </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">No courses yet. Add your first course to get started.</p>
+                      <Button 
+                        className="mt-4" 
+                        variant="outline" 
+                        onClick={() => setShowAddCourse(true)}
+                      >
+                        Add Course
+                      </Button>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </TabsContent>
